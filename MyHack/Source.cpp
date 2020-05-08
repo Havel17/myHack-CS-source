@@ -1,6 +1,3 @@
-
-
-
 #include <stdio.h> 
 #include <Windows.h> 
 #include <Winnt.h> 
@@ -12,49 +9,59 @@
 #define PLRSZ 0x10
 #define CLIENTDLL "client.dll"
 #define SERVERDLL "server.dll"
+#define ENGINEDLL "engine.dll"
 
+//const DWORD plr_list_offset = 0X003FB2F0;
 const DWORD plr_list_offset = 0x003B51C4; // значение хуйня, надо искать другую
 const DWORD hp_offset = 0xDA4; // зависит от верхней хуиты
 
-
+bool wh=false;
+int hp;
+DWORD plr_addr;
 DWORD client_dll_base; // во вторых
-DWORD server_dll_base; //во первых
+DWORD server_dll_base; //во первых1
 HANDLE hProcess; // открыть процесс?
 PROCESSENTRY32 pe32; // типа переменная в которой хранится адрес процесса
 
 HANDLE HandleProcessa(const char* szFilename);
 int read_bytes(LPCVOID addr, int num, void* buf);
 void esp();
+void Init();
 
-int Init() {
-	hProcess = HandleProcessa(WINDOWNAME);
-	esp();
-	CloseHandle(hProcess);
+int main() {
+	Init();
 	return 0;
 }
 
+void Init() {
+	hProcess = HandleProcessa(WINDOWNAME);
+	esp();
+	CloseHandle(hProcess);
+}
 
 //===================================================================================
 void esp() {
-	int hp;
+	while (true) {
 	DWORD addrc = client_dll_base + plr_list_offset; // ссылка на структуру с игроками client.dll
-	DWORD addrs = server_dll_base + plr_list_offset; // ссылка на струткуру с игроками server.dll
-	DWORD plr_addr; // игрок
-	// проводится дебаг!
-	printf("Player plr_list_offset: %08X\n", plr_list_offset);
-	printf("Player client_dll_base: %08X\n", client_dll_base);
-	printf("Player addrc: %08X\n", addrc);
-
+	//DWORD addrs = server_dll_base + plr_list_offset; // ссылка на струткуру с игроками server.dll
 	read_bytes((LPCVOID)addrc, 4, &plr_addr); // считываем со структуры игрока
 	DWORD hpa = plr_addr + hp_offset; // узнаем адресс хп игрока выше
-
-	printf("Player hpa: %08X\n", hpa);
 	
-	for (;; Sleep(1)) {
-		system("cls");
+//		system("cls");
 		read_bytes((LPCVOID)hpa, 4, &hp); // считываем хп игрока и записываем в переменную hp
-		printf("Player hp: %d\n", hp);
-		
+//		printf("Player hp: %d\n", hp);
+
+		if (GetAsyncKeyState(VK_F8)) {
+			wh = !wh;
+		}
+		if (wh) {
+			if (hp > 0 && hp < 237 || hp > 239 && hp < 500) {
+				keybd_event(MapVirtualKey(0x76, 0), 0x41, KEYEVENTF_EXTENDEDKEY, 0);     //https://www.delphiplus.org/apparatnye-sredstva-pc/sken-kody.html
+				keybd_event(MapVirtualKey(0x76, 0), 0x41, KEYEVENTF_KEYUP, 0);			//http://vsokovikov.narod.ru/New_MSDN_API/Other/virtual_key_code.htm
+				Sleep(50);
+			}
+		}
+		Sleep(1);
 	}
 }
 //=============================================================================
@@ -63,7 +70,7 @@ int read_bytes(LPCVOID addr, int num, void* buf) {
 	SIZE_T sz = 0;
 	int r = ReadProcessMemory(hProcess, addr, buf, num, &sz);  // та самая считывалка, не ебу как работает
 	if (r == 0 || sz == 0) {
-		printf("RPM error, %08X\n", GetLastError());
+//		printf("RPM error, %08X\n", GetLastError());
 		return 0;
 	}
 	return 1;
@@ -88,9 +95,9 @@ HANDLE HandleProcessa(const char* szFilename) {
 
 	
 	CloseHandle(hProcessSnap);
-	if (pe32.th32ProcessID) {
-		printf("Counter-Strike Source found! [Pid: %d] ", (DWORD)pe32.th32ProcessID);
-	}
+//	if (pe32.th32ProcessID) {
+//		printf("Counter-Strike Source found! [Pid: %d] ", (DWORD)pe32.th32ProcessID);
+//	}
 	//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 	HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, 0, pe32.th32ProcessID); // открытие  процесса?
@@ -100,21 +107,21 @@ HANDLE HandleProcessa(const char* szFilename) {
 	HMODULE hMods[1024];
 	int i;
 	if (EnumProcessModules(hProcess, hMods, sizeof(hMods), &pe32.th32ProcessID) == 0) {// if {хз че тут, просто скопировал}
-		printf("enumprocessmodules failed, %08X\n", GetLastError());
+//		printf("enumprocessmodules failed, %08X\n", GetLastError());
 	}
 	else {																				//else находим длллки в процессе
 		for (i = 0; i < (pe32.th32ProcessID / sizeof(HMODULE)); i++) {
 			TCHAR szModName[MAX_PATH];													// переменная, где будет хранится названия дллки, которые мы прогоняем через цикл
 			if (GetModuleFileNameEx(hProcess, hMods[i], szModName,            
 				sizeof(szModName) / sizeof(TCHAR))) {									//берет ту самую дллку из процесса(процесс, модуль(типа смещение в памяти что бы найти длл),буфер,size буфера, что бы функция дала true)
-				printf("Pizda brone %s\n", szModName);									// очередной дебаг
+//				printf("Pizda brone %s\n", szModName);									// очередной дебаг
 				if (strstr(szModName, SERVERDLL) != 0) {								// во первых сверяем буфер с server.dll
-					printf("server.dll base: %08X\n", hMods[i]);
+//					printf("server.dll base: %08X\n", hMods[i]);
 					server_dll_base = (DWORD)hMods[i];									// в третих типа если да то записываем ее
 					
 				}
 				if (strstr(szModName, CLIENTDLL) != 0) {								// во вторых смотри хуйню во первых
-					printf("client.dll base: %08X\n", hMods[i]);			
+//					printf("client.dll base: %08X\n", hMods[i]);			
 					client_dll_base = (DWORD)hMods[i];									//иди нахуй
 					break;
 				}
